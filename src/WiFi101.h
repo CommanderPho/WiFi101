@@ -25,8 +25,8 @@
 #include <Arduino.h>
 
 extern "C" {
-	#include "driver/include/m2m_wifi.h"
-	#include "socket/include/socket.h"
+#include "driver/include/m2m_wifi.h"
+#include "socket/include/socket.h"
 }
 
 #include "WiFiClient.h"
@@ -51,7 +51,7 @@ typedef enum {
 
 /* Encryption modes */
 enum wl_enc_type {  /* Values map to 802.11 encryption suites... */
-	ENC_TYPE_WEP  = M2M_WIFI_SEC_WEP,
+	ENC_TYPE_WEP = M2M_WIFI_SEC_WEP,
 	ENC_TYPE_TKIP = M2M_WIFI_SEC_WPA_PSK,
 	ENC_TYPE_CCMP = M2M_WIFI_SEC_802_1X,
 	/* ... except these two, 7 and 8 are reserved in 802.11-2007 */
@@ -73,6 +73,8 @@ typedef enum {
 	WL_PING_ERROR = -4
 } wl_ping_result_t;
 
+typedef void(*TGAM_StatusChangeEventCallback) (const wl_status_t newStatus);
+
 class WiFiClass
 {
 public:
@@ -88,13 +90,20 @@ public:
 	uint8_t _scan_auth;
 	char _ssid[M2M_MAX_SSID_LEN];
 	WiFiClient *_client[TCP_SOCK_MAX];
+	//Pho
+	static TGAM_StatusChangeEventCallback _globalStatusChangedCallback;
+	void setStatusChangedCallback(TGAM_StatusChangeEventCallback response);
+	bool _hasAttachedStatusChangeEventCallback;
+	// Wait for connection or timeout:
+	unsigned long connection_begin_start;
+	char connection_begin_ssid[M2M_MAX_SSID_LEN];
 
 	WiFiClass();
 
 	void setPins(int8_t cs, int8_t irq, int8_t rst, int8_t en = -1);
 
 	int init();
-	
+
 	char* firmwareVersion();
 
 	/* Start Wifi connection with WPA/WPA2 encryption.
@@ -106,9 +115,14 @@ public:
 	uint8_t begin(const char *ssid);
 	uint8_t begin(const char *ssid, uint8_t key_idx, const char* key);
 	uint8_t begin(const char *ssid, const char *key);
+
 	uint8_t begin(const String &ssid) { return begin(ssid.c_str()); }
 	uint8_t begin(const String &ssid, uint8_t key_idx, const String &key) { return begin(ssid.c_str(), key_idx, key.c_str()); }
 	uint8_t begin(const String &ssid, const String &key) { return begin(ssid.c_str(), key.c_str()); }
+
+	bool beginAsync(const char *ssid, const char *key, TGAM_StatusChangeEventCallback callback);
+	bool beginAsync(const String &ssid, const String &key, TGAM_StatusChangeEventCallback callback) { return beginAsync(ssid.c_str(), key.c_str(), callback); }
+	bool updateConnect();
 
 	/* Start Wifi in Access Point, with open security.
 	 * Only one client can connect to the AP at a time.
@@ -171,6 +185,9 @@ private:
 	char _version[9];
 
 	uint8_t startConnect(const char *ssid, uint8_t u8SecType, const void *pvAuthInfo);
+	bool startConnect(const char * ssid, uint8_t u8SecType, const void * pvAuthInfo, TGAM_StatusChangeEventCallback callback);
+	wl_status_t completeStartConnect();
+
 	uint8_t startAP(const char *ssid, uint8_t u8SecType, const void *pvAuthInfo, uint8_t channel);
 	uint8_t* remoteMacAddress(uint8_t* remoteMacAddress);
 
